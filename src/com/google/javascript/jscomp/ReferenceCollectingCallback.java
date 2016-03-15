@@ -300,6 +300,7 @@ class ReferenceCollectingCallback implements ScopedCallback,
         case Token.TRY:
         case Token.WHILE:
         case Token.WITH:
+        case Token.CLASS:
           // NOTE: TRY has up to 3 child blocks:
           // TRY
           //   BLOCK
@@ -660,8 +661,8 @@ class ReferenceCollectingCallback implements ScopedCallback,
           && node == parent.getLastChild()) {
         // Unless it is something like "for (var/let/const a of x){}",
         // this is the RHS of a var/let/const and thus not a declaration.
-        if (parent.getParent().getParent() == null
-            || !parent.getParent().getParent().isForOf()) {
+        if (parent.getGrandparent() == null
+            || !parent.getGrandparent().isForOf()) {
           return false;
         }
       }

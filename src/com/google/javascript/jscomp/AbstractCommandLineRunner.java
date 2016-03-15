@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,12 +111,25 @@ import javax.annotation.Nullable;
 @GwtIncompatible("Unnecessary")
 public abstract class AbstractCommandLineRunner<A extends Compiler,
     B extends CompilerOptions> {
+
   static final DiagnosticType OUTPUT_SAME_AS_INPUT_ERROR = DiagnosticType.error(
       "JSC_OUTPUT_SAME_AS_INPUT_ERROR",
       "Bad output file (already listed as input file): {0}");
+
   static final DiagnosticType NO_TREE_GENERATED_ERROR = DiagnosticType.error(
       "JSC_NO_TREE_GENERATED_ERROR",
       "Code contains errors. No tree was generated.");
+  static final DiagnosticType INVALID_MODULE_SOURCEMAP_PATTERN =
+      DiagnosticType.error(
+          "JSC_INVALID_MODULE_SOURCEMAP_PATTERN",
+          "When using --module flags, the --create_source_map flag must contain "
+              + "%outname% in the value.");
+
+  static final DiagnosticType CONFLICTING_DUPLICATE_ZIP_CONTENTS = DiagnosticType.error(
+      "JSC_CONFLICTING_DUPLICATE_ZIP_CONTENTS",
+      "Two zip entries containing conflicting contents with the same relative path.\n"
+      + "Entry 1: {0}\n"
+      + "Entry 2: {1}");
 
   static final String WAITING_FOR_INPUT_WARNING =
       "The compiler is waiting for input via stdin.";
@@ -278,8 +292,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    */
   static DependencyOptions createDependencyOptions(
       CompilerOptions.DependencyMode dependencyMode,
-      List<DependencyOptions.ModuleIdentifier> entryPoints)
-      throws FlagUsageException {
+      List<ModuleIdentifier> entryPoints) {
     if (dependencyMode == CompilerOptions.DependencyMode.STRICT) {
       if (entryPoints.isEmpty()) {
         throw new FlagUsageException(
@@ -310,8 +323,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * If you want to ignore the flags API, or interpret flags your own way,
    * then you should override this method.
    */
-  protected void setRunOptions(CompilerOptions options)
-      throws FlagUsageException, IOException {
+  protected void setRunOptions(CompilerOptions options) throws IOException {
     DiagnosticGroups diagnosticGroups = getDiagnosticGroups();
 
     if (config.warningGuards != null) {
@@ -406,30 +418,6 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
           VariableMap.load(config.propertyMapInputFile);
     }
 
-    if (config.languageIn.length() > 0) {
-      CompilerOptions.LanguageMode languageMode =
-          CompilerOptions.LanguageMode.fromString(config.languageIn);
-      if (languageMode != null) {
-        options.setLanguageIn(languageMode);
-      } else {
-        throw new FlagUsageException("Unknown language `" + config.languageIn
-                                     + "' specified.");
-      }
-    }
-
-    if (config.languageOut.isEmpty()) {
-      options.setLanguageOut(options.getLanguageIn());
-    } else {
-      CompilerOptions.LanguageMode languageMode =
-          CompilerOptions.LanguageMode.fromString(config.languageOut);
-      if (languageMode != null) {
-        options.setLanguageOut(languageMode);
-      } else {
-        throw new FlagUsageException("Unknown language `" + config.languageOut +
-                                     "' specified.");
-      }
-    }
-
     if (!config.outputManifests.isEmpty()) {
       Set<String> uniqueNames = new HashSet<>();
       for (String filename : config.outputManifests) {
@@ -457,6 +445,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
     options.tracer = config.tracerMode;
     options.setNewTypeInference(config.useNewTypeInference);
     options.instrumentationTemplateFile = config.instrumentationTemplateFile;
+    options.setPrintSourceAfterEachPass(config.printSourceAfterEachPass);
   }
 
   protected final A getCompiler() {
@@ -467,7 +456,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * @return a mutable list
    * @throws IOException
    */
-  public static List<SourceFile> getBuiltinExterns(CompilerOptions options)
+  public static List<SourceFile> getBuiltinExterns(CompilerOptions.Environment env)
       throws IOException {
     InputStream input = AbstractCommandLineRunner.class.getResourceAsStream(
         "/externs.zip");
@@ -478,7 +467,6 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
     Preconditions.checkNotNull(input);
 
     ZipInputStream zip = new ZipInputStream(input);
-    CompilerOptions.Environment env = options.getEnvironment();
     String envPrefix = env.toString().toLowerCase() + "/";
     String browserEnv = CompilerOptions.Environment.BROWSER.toString().toLowerCase();
     boolean flatExternStructure = true;
@@ -569,7 +557,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
   /**
    * An exception thrown when command-line flags are used incorrectly.
    */
-  public static class FlagUsageException extends Exception {
+  public static class FlagUsageException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
     public FlagUsageException(String message) {
@@ -602,9 +590,9 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * @param jsModuleSpecs A list js module specs.
    * @return An array of inputs
    */
-  protected List<SourceFile> createInputs(List<FlagEntry<JsSourceType>> files,
-      boolean allowStdIn, List<JsModuleSpec> jsModuleSpecs)
-      throws FlagUsageException, IOException {
+  protected List<SourceFile> createInputs(
+      List<FlagEntry<JsSourceType>> files, boolean allowStdIn, List<JsModuleSpec> jsModuleSpecs)
+      throws IOException {
     return createInputs(files, null /* jsonFiles */, allowStdIn, jsModuleSpecs);
   }
 
@@ -619,10 +607,47 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * @param jsModuleSpecs A list js module specs.
    * @return An array of inputs
    */
-  protected List<SourceFile> createInputs(List<FlagEntry<JsSourceType>> files,
-      List<JsonFileSpec> jsonFiles, List<JsModuleSpec> jsModuleSpecs)
-      throws FlagUsageException, IOException {
+  protected List<SourceFile> createInputs(
+      List<FlagEntry<JsSourceType>> files,
+      List<JsonFileSpec> jsonFiles,
+      List<JsModuleSpec> jsModuleSpecs)
+      throws IOException {
     return createInputs(files, jsonFiles, false, jsModuleSpecs);
+  }
+
+  /**
+   * Check that relative paths inside zip files are unique, since multiple files
+   * with the same path inside different zips are considered duplicate inputs.
+   * Parameter {@code sourceFiles} may be modified if duplicates are removed.
+   */
+  public static List<JSError> removeDuplicateZipEntries(List<SourceFile> sourceFiles)
+      throws IOException {
+    ImmutableList.Builder<JSError> errors = ImmutableList.builder();
+    Map<String, SourceFile> sourceFilesByName = new HashMap<>();
+    Iterator<SourceFile> fileIterator = sourceFiles.listIterator();
+    while (fileIterator.hasNext()) {
+      SourceFile sourceFile = fileIterator.next();
+      String fullPath = sourceFile.getName();
+      if (!fullPath.contains("!/")) {
+        // Not a zip file
+        continue;
+      }
+      String relativePath = fullPath.split("!")[1];
+      if (!sourceFilesByName.containsKey(relativePath)) {
+        sourceFilesByName.put(relativePath, sourceFile);
+      } else {
+        SourceFile firstSourceFile = sourceFilesByName.get(relativePath);
+        if (firstSourceFile.getCode().equals(sourceFile.getCode())) {
+          errors.add(JSError.make(
+              SourceFile.DUPLICATE_ZIP_CONTENTS, firstSourceFile.getName(), sourceFile.getName()));
+          fileIterator.remove();
+        } else {
+          errors.add(JSError.make(
+              CONFLICTING_DUPLICATE_ZIP_CONTENTS, firstSourceFile.getName(), sourceFile.getName()));
+        }
+      }
+    }
+    return errors.build();
   }
 
   /**
@@ -638,9 +663,12 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * @param jsModuleSpecs A list js module specs.
    * @return An array of inputs
    */
-  protected List<SourceFile> createInputs(List<FlagEntry<JsSourceType>> files,
-      List<JsonFileSpec> jsonFiles, boolean allowStdIn,
-      List<JsModuleSpec> jsModuleSpecs) throws FlagUsageException, IOException {
+  protected List<SourceFile> createInputs(
+      List<FlagEntry<JsSourceType>> files,
+      List<JsonFileSpec> jsonFiles,
+      boolean allowStdIn,
+      List<JsModuleSpec> jsModuleSpecs)
+      throws IOException {
     List<SourceFile> inputs = new ArrayList<>(files.size());
     boolean usingStdin = false;
     int jsModuleIndex = 0;
@@ -695,6 +723,9 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
         inputs.add(SourceFile.fromCode(jsonFile.getPath(), jsonFile.getSrc()));
       }
     }
+    for (JSError error : removeDuplicateZipEntries(inputs)) {
+      compiler.report(error);
+    }
     return inputs;
   }
 
@@ -705,7 +736,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
       List<JsModuleSpec> jsModuleSpecs,
       List<FlagEntry<JsSourceType>> files,
       List<JsonFileSpec> jsonFiles)
-      throws FlagUsageException, IOException {
+      throws IOException {
     if (isInTestMode()) {
       return inputsSupplierForTesting != null ? inputsSupplierForTesting.get()
           : null;
@@ -729,8 +760,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
   /**
    * Creates JS extern inputs from a list of files.
    */
-  private List<SourceFile> createExternInputs(List<String> files)
-      throws FlagUsageException, IOException {
+  private List<SourceFile> createExternInputs(List<String> files) throws IOException {
     if (files.isEmpty()) {
       return ImmutableList.of(SourceFile.fromCode("/dev/null", ""));
     }
@@ -752,9 +782,8 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * @param inputs A list of JS file paths, not null
    * @return An array of module objects
    */
-  List<JSModule> createJsModules(
-      List<JsModuleSpec> specs, List<SourceFile> inputs)
-      throws FlagUsageException, IOException {
+  List<JSModule> createJsModules(List<JsModuleSpec> specs, List<SourceFile> inputs)
+      throws IOException {
     if (isInTestMode()) {
       return modulesSupplierForTesting.get();
     }
@@ -846,10 +875,8 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
   /**
    * Validates the module name. Can be overridden by subclasses.
    * @param name The module name
-   * @throws FlagUsageException if the validation fails
    */
-  protected void checkModuleName(String name)
-      throws FlagUsageException {
+  protected void checkModuleName(String name) {
     if (!TokenStream.isJSIdentifier(name)) {
       throw new FlagUsageException("Invalid module name: '" + name + "'");
     }
@@ -864,8 +891,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * @return A map from module name to module wrapper. Modules with no wrapper
    *         will have the empty string as their value in this map.
    */
-  static Map<String, String> parseModuleWrappers(List<String> specs,
-      List<JSModule> modules) throws FlagUsageException {
+  static Map<String, String> parseModuleWrappers(List<String> specs, List<JSModule> modules) {
     Preconditions.checkState(specs != null);
 
     Map<String, String> wrappers = Maps.newHashMapWithExpectedSize(modules.size());
@@ -904,8 +930,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
   }
 
   @VisibleForTesting
-  void writeModuleOutput(Appendable out, JSModule m)
-      throws FlagUsageException, IOException {
+  void writeModuleOutput(Appendable out, JSModule m) throws IOException {
     if (parsedModuleWrappers == null) {
       parsedModuleWrappers = parseModuleWrappers(
           config.moduleWrapper,
@@ -998,7 +1023,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    *
    * @return system exit status
    */
-  protected int doRun() throws FlagUsageException, IOException {
+  protected int doRun() throws IOException {
     Compiler.setLoggingLevel(Level.parse(config.loggingLevel));
 
     compiler = createCompiler();
@@ -1054,6 +1079,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
       }
     }
 
+    compiler.initWarningsGuard(options.getWarningsGuard());
     List<SourceFile> inputs =
         createSourceInputs(jsModuleSpecs, config.mixedJsSources, jsonFiles);
     if (!jsModuleSpecs.isEmpty()) {
@@ -1064,17 +1090,19 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
 
       if (config.skipNormalOutputs) {
         compiler.initModules(externs, modules, options);
+        compiler.orderInputs();
       } else {
         result = compiler.compileModules(externs, modules, options);
       }
     } else {
       if (config.skipNormalOutputs) {
         compiler.init(externs, inputs, options);
-        compiler.hoistExterns();
+        compiler.orderInputs();
       } else {
         result = compiler.compile(externs, inputs, options);
       }
     }
+
     if (createCommonJsModules) {
       // For CommonJS modules construct modules from actual inputs.
       modules = ImmutableList.copyOf(compiler.getDegenerateModuleGraph()
@@ -1098,8 +1126,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
   /**
    * Processes the results of the compile job, and returns an error code.
    */
-  int processResults(Result result, List<JSModule> modules, B options)
-       throws FlagUsageException, IOException {
+  int processResults(Result result, List<JSModule> modules, B options) throws IOException {
     if (config.printPassGraph) {
       if (compiler.getRoot() == null) {
         return 1;
@@ -1160,7 +1187,11 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
           outputSourceMap(options, config.jsOutputFile);
         }
       } else {
-        outputModuleBinaryAndSourceMaps(modules, options);
+        DiagnosticType error = outputModuleBinaryAndSourceMaps(modules, options);
+        if (error != null) {
+          compiler.report(JSError.make(error));
+          return 1;
+        }
       }
 
       // Output the externs if required.
@@ -1254,8 +1285,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
     }
   }
 
-  private void outputModuleBinaryAndSourceMaps(
-      List<JSModule> modules, B options)
+  private DiagnosticType outputModuleBinaryAndSourceMaps(List<JSModule> modules, B options)
       throws FlagUsageException, IOException {
     parsedModuleWrappers = parseModuleWrappers(
         config.moduleWrapper, modules);
@@ -1268,9 +1298,12 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
 
     // When the json_streams flag is specified, sourcemaps are always generated
     // per module
-    if (!(shouldGenerateMapPerModule(options) || isOutputInJson())) {
-      mapFileOut = fileNameToOutputWriter2(
-          expandSourceMapPath(options, null));
+    if (!(shouldGenerateMapPerModule(options)
+        || options.sourceMapOutputPath == null
+        || config.jsonStreamMode == JsonStreamMode.OUT
+        || config.jsonStreamMode == JsonStreamMode.BOTH)) {
+      // warn that this is not supported
+      return INVALID_MODULE_SOURCEMAP_PATTERN;
     }
 
     for (JSModule m : modules) {
@@ -1281,14 +1314,14 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
           mapFileOut = fileNameToOutputWriter2(expandSourceMapPath(options, m));
         }
 
-        try (Writer writer = fileNameToLegacyOutputWriter(
-            getModuleOutputFileName(m))) {
+        String moduleFilename = getModuleOutputFileName(m);
+        try (Writer writer = fileNameToLegacyOutputWriter(moduleFilename)) {
           if (options.sourceMapOutputPath != null) {
             compiler.getSourceMap().reset();
           }
           writeModuleOutput(writer, m);
           if (options.sourceMapOutputPath != null) {
-            compiler.getSourceMap().appendTo(mapFileOut, m.getName());
+            compiler.getSourceMap().appendTo(mapFileOut, moduleFilename);
           }
         }
 
@@ -1302,6 +1335,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
     if (mapFileOut != null) {
       mapFileOut.close();
     }
+    return null;
   }
 
   /**
@@ -1335,7 +1369,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * @return Charset to use when reading inputs
    * @throws FlagUsageException if flag is not a valid Charset name.
    */
-  private Charset getInputCharset() throws FlagUsageException {
+  private Charset getInputCharset() {
     if (!config.charset.isEmpty()) {
       if (!Charset.isSupported(config.charset)) {
         throw new FlagUsageException(config.charset +
@@ -1358,7 +1392,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    *    be a supported charset.
    * @throws FlagUsageException if flag is not a valid Charset name.
    */
-  private Charset getLegacyOutputCharset() throws FlagUsageException {
+  private Charset getLegacyOutputCharset() {
     if (!config.charset.isEmpty()) {
       if (!Charset.isSupported(config.charset)) {
         throw new FlagUsageException(config.charset + " is not a valid charset name.");
@@ -1372,7 +1406,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * Query the flag for the output charset. Defaults to UTF-8.
    * @throws FlagUsageException if flag is not a valid Charset name.
    */
-  private Charset getOutputCharset2() throws FlagUsageException {
+  private Charset getOutputCharset2() {
     if (!config.charset.isEmpty()) {
       if (!Charset.isSupported(config.charset)) {
         throw new FlagUsageException(config.charset +
@@ -1383,8 +1417,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
     return UTF_8;
   }
 
-  protected List<SourceFile> createExterns(CompilerOptions options)
-      throws FlagUsageException, IOException {
+  protected List<SourceFile> createExterns(CompilerOptions options) throws IOException {
     return isInTestMode() ? externsSupplierForTesting.get() :
         createExternInputs(config.externs);
   }
@@ -1591,8 +1624,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
    * Outputs the variable and property name maps for the specified compiler if
    * the proper FLAGS are set.
    */
-  private void outputNameMaps() throws FlagUsageException,
-      IOException {
+  private void outputNameMaps() throws IOException {
 
     String propertyMapOutputPath = null;
     String variableMapOutputPath = null;
@@ -2274,13 +2306,13 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
       return this;
     }
 
-    private List<DependencyOptions.ModuleIdentifier> entryPoints = ImmutableList.of();
+    private List<ModuleIdentifier> entryPoints = ImmutableList.of();
 
     /**
      * Set module entry points, which makes the compiler only include
      * those files and sort them in dependency order.
      */
-    CommandLineConfig setEntryPoints(List<DependencyOptions.ModuleIdentifier> entryPoints) {
+    CommandLineConfig setEntryPoints(List<ModuleIdentifier> entryPoints) {
       Preconditions.checkNotNull(entryPoints);
       this.entryPoints = entryPoints;
       return this;
@@ -2305,11 +2337,11 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
      * Helper method to convert a list of closure entry points a list of the new
      * ModuleIdentifier values
      */
-    static List<DependencyOptions.ModuleIdentifier> entryPointsFromClosureEntryPoints(
+    static List<ModuleIdentifier> entryPointsFromClosureEntryPoints(
         List<String> closureEntryPoints) {
-      List<DependencyOptions.ModuleIdentifier> entryPoints = new ArrayList<>();
+      List<ModuleIdentifier> entryPoints = new ArrayList<>();
       for (String closureEntryPoint : closureEntryPoints) {
-        entryPoints.add(DependencyOptions.ModuleIdentifier.forClosure(closureEntryPoint));
+        entryPoints.add(ModuleIdentifier.forClosure(closureEntryPoint));
       }
       return entryPoints;
     }
@@ -2350,19 +2382,6 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
      */
     CommandLineConfig setOutputBundle(List<String> outputBundles) {
       this.outputBundles = outputBundles;
-      return this;
-    }
-
-    private String languageIn = "";
-    private String languageOut = "";
-
-    CommandLineConfig setLanguageIn(String languageIn) {
-      this.languageIn = languageIn;
-      return this;
-    }
-
-    CommandLineConfig setLanguageOut(String languageOut) {
-      this.languageOut = languageOut;
       return this;
     }
 
@@ -2464,6 +2483,13 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
       return this;
     }
 
+    private boolean printSourceAfterEachPass = false;
+
+    CommandLineConfig setPrintSourceAfterEachPass(boolean printSource) {
+      this.printSourceAfterEachPass = printSource;
+      return this;
+    }
+
     private String instrumentationTemplateFile = "";
 
     CommandLineConfig setInstrumentationTemplateFile(String fileName) {
@@ -2542,6 +2568,21 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
       this.flag = flag;
       this.value = value;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o instanceof FlagEntry) {
+        FlagEntry<?> that = (FlagEntry<?>) o;
+        return that.flag.equals(this.flag)
+            && that.value.equals(this.value);
+      }
+      return false;
+    }
+
+    @Override
+    public int hashCode() {
+      return flag.hashCode() + value.hashCode();
+    }
   }
 
   /**
@@ -2569,10 +2610,8 @@ public abstract class AbstractCommandLineRunner<A extends Compiler,
      *        not contain the ':' character.
      * @param isFirstModule Whether the spec is for the first module.
      * @return A parsed js module spec.
-     * @throws FlagUsageException
      */
-    static JsModuleSpec create(String specString, boolean isFirstModule)
-        throws FlagUsageException {
+    static JsModuleSpec create(String specString, boolean isFirstModule) {
       // Format is "<name>:<num-js-files>[:[<dep>,...][:]]".
       String[] parts = specString.split(":");
       if (parts.length < 2 || parts.length > 4) {

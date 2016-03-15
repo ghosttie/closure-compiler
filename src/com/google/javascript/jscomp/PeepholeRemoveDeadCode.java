@@ -326,8 +326,9 @@ class PeepholeRemoveDeadCode extends AbstractPeepholeOptimization {
         for (cur = cond.getNext(); cur != null; cur = next) {
           next = cur.getNext();
           caseLabel = cur.getFirstChild();
+          // TODO(moz): Use type information if allowed.
           caseMatches = PeepholeFoldConstants.evaluateComparison(
-              Token.SHEQ, cond, caseLabel);
+              Token.SHEQ, cond, caseLabel, false);
           if (caseMatches == TernaryValue.TRUE) {
             break;
           } else if (caseMatches == TernaryValue.UNKNOWN) {
@@ -475,7 +476,7 @@ class PeepholeRemoveDeadCode extends AbstractPeepholeOptimization {
               return blockChild.getFirstChild() == null;
             case Token.VAR:
               if (blockChild.hasOneChild()
-                  && blockChild.getFirstChild().getFirstChild() == null) {
+                  && blockChild.getFirstFirstChild() == null) {
                 // Variable declarations without initializations are OK.
                 continue;
               }
@@ -618,10 +619,10 @@ class PeepholeRemoveDeadCode extends AbstractPeepholeOptimization {
     // For our purposes we define a simple assignment to be a assignment
     // to a NAME node, or a VAR declaration with one child and a initializer.
     if (NodeUtil.isExprAssign(n)
-        && n.getFirstChild().getFirstChild().isName()) {
+        && n.getFirstFirstChild().isName()) {
       return true;
     } else if (n.isVar() && n.hasOneChild() &&
-        n.getFirstChild().getFirstChild() != null) {
+        n.getFirstFirstChild() != null) {
       return true;
     }
 
@@ -634,7 +635,7 @@ class PeepholeRemoveDeadCode extends AbstractPeepholeOptimization {
   private Node getSimpleAssignmentName(Node n) {
     Preconditions.checkState(isSimpleAssignment(n));
     if (NodeUtil.isExprAssign(n)) {
-      return n.getFirstChild().getFirstChild();
+      return n.getFirstFirstChild();
     } else {
       // A var declaration.
       return n.getFirstChild();
@@ -681,7 +682,7 @@ class PeepholeRemoveDeadCode extends AbstractPeepholeOptimization {
       return NodeUtil.getConditionExpression(n);
     } else {
       Preconditions.checkState(isExprConditional(n));
-      return n.getFirstChild().getFirstChild();
+      return n.getFirstFirstChild();
     }
   }
 

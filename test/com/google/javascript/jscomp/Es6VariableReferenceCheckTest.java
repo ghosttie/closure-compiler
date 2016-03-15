@@ -277,6 +277,10 @@ public final class Es6VariableReferenceCheckTest extends CompilerTestCase {
     assertNoWarning("class A { f() { return 1729; } }");
   }
 
+  public void testRedeclareClassName() {
+    assertNoWarning("var Clazz = class Foo {}; var Foo = 3;");
+  }
+
   public void testClassExtend() {
     assertNoWarning("class A {} class C extends A {} C = class extends A {}");
   }
@@ -328,15 +332,20 @@ public final class Es6VariableReferenceCheckTest extends CompilerTestCase {
    * basic checks.
    */
   public void testDefaultParam() {
-    assertEarlyReferenceError("function f(x=a) {}");
     assertEarlyReferenceError("function f(x=a) { let a; }");
+    assertEarlyReferenceError(LINE_JOINER.join(
+        "function f(x=a) { let a; }",
+        "function g(x=1) { var a; }"));
     assertEarlyReferenceError("function f(x=a) { var a; }");
     assertEarlyReferenceError("function f(x=a()) { function a() {} }");
     assertEarlyReferenceError("function f(x=[a]) { var a; }");
     assertEarlyReferenceError("function f(x=y, y=2) {}");
+    assertNoWarning("function f(x=a) {}");
     assertNoWarning("function f(x=a) {} var a;");
     assertNoWarning("let b; function f(x=b) { var b; }");
     assertNoWarning("function f(y = () => x, x = 5) { return y(); }");
+    assertNoWarning("function f(x = new foo.bar()) {}");
+    assertNoWarning("var foo = {}; foo.bar = class {}; function f(x = new foo.bar()) {}");
   }
 
   public void testDestructuring() {

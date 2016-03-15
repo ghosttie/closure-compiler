@@ -36,7 +36,7 @@ $jscomp.array.done_ = function() {
  * supposed to be a generator.
  * @param {!IArrayLike<INPUT>} array
  * @param {function(number, INPUT): OUTPUT} func
- * @return {!Iterator<OUTPUT>}
+ * @return {!IteratorIterable<OUTPUT>}
  * @private
  * @template INPUT, OUTPUT
  * @suppress {checkTypes}
@@ -96,8 +96,8 @@ $jscomp.array.findInternal_ = function(array, callback, thisArg) {
  * relies on the compiler to check the validity of inputs rather
  * than producing spec-compliant TypeErrors.
  *
- * @param {!IArrayLike<INPUT>|!Iterable<INPUT>} arrayLike
- *     An array-like or iterable.
+ * @param {!IArrayLike<INPUT>|!Iterator<INPUT>|!Iterable<INPUT>}
+ *     arrayLike An array-like or iterable.
  * @param {(function(this: THIS, INPUT): OUTPUT)=} opt_mapFn
  *     Function to call on each argument.
  * @param {THIS=} opt_thisArg
@@ -130,13 +130,11 @@ $jscomp.array.from = function(
  * <p>Polyfills the static function Array.of().  Does not support
  * constructor inheritance (i.e. (subclass of Array).of).
  *
- * @param {...VALUE} elements Elements to include in the array.
- * @return {!Array<VALUE>}
- * @template VALUE
- * @suppress {checkTypes}
+ * @param {...*} elements Elements to include in the array.
+ * @return {!Array<*>}
+ * TODO(tbreisacher): Put back the at-template type after b/26884264 is fixed.
  */
 $jscomp.array.of = function(...elements) {
-  // TODO(sdh): Remove suppression when IArrayLike migration is done.
   return $jscomp.array.from(elements);
 };
 
@@ -146,7 +144,7 @@ $jscomp.array.of = function(...elements) {
  * in the given array.
  *
  * @this {!IArrayLike<VALUE>}
- * @return {!Iterator<!Array<number|VALUE>>}
+ * @return {!IteratorIterable<!Array<number|VALUE>>}
  * @template VALUE
  */
 $jscomp.array.entries = function() {
@@ -169,7 +167,7 @@ $jscomp.array.entries$install = function() {
  * Returns an iterator of keys of the given array.
  *
  * @this {!IArrayLike}
- * @return {!Iterator<number>}
+ * @return {!IteratorIterable<number>}
  */
 $jscomp.array.keys = function() {
   return $jscomp.array.arrayIterator_(this, i => i);
@@ -191,7 +189,7 @@ $jscomp.array.keys$install = function() {
  * Returns an iterator of values of the given array.
  *
  * @this {!IArrayLike<VALUE>}
- * @return {!Iterator<VALUE>}
+ * @return {!IteratorIterable<VALUE>}
  * @template VALUE
  */
 $jscomp.array.values = function() {
