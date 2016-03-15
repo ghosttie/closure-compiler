@@ -343,7 +343,7 @@ class ScopedAliases implements HotSwapCompilerPass {
      *     in a goog.scope() call.
      */
     private Node findScopeMethodCall(Node scopeRoot) {
-      Node n = scopeRoot.getParent().getParent();
+      Node n = scopeRoot.getGrandparent();
       if (isCallToScopeMethod(n)) {
         return n;
       }
@@ -465,7 +465,7 @@ class ScopedAliases implements HotSwapCompilerPass {
           int nameCount = scopedAliasNames.count(name);
           scopedAliasNames.add(name);
           String globalName =
-              "$jscomp.scope." + name + (nameCount == 0 ? "" : ("$" + nameCount));
+              "$jscomp.scope." + name + (nameCount == 0 ? "" : ("$jscomp$" + nameCount));
 
           compiler.ensureLibraryInjected("base", true);
 
@@ -512,7 +512,7 @@ class ScopedAliases implements HotSwapCompilerPass {
                 varDocInfo)
                 .useSourceInfoIfMissingFromForTree(n);
             NodeUtil.setDebugInformation(
-                newDecl.getFirstChild().getFirstChild(), n, name);
+                newDecl.getFirstFirstChild(), n, name);
 
             if (isHoisted) {
               grandparent.addChildToFront(newDecl);

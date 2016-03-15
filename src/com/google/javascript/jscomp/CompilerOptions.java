@@ -54,13 +54,6 @@ public class CompilerOptions {
   // package-private, and have a public setter.
 
   /**
-   * The warning classes that are available.
-   */
-  protected DiagnosticGroups getDiagnosticGroups() {
-    return new DiagnosticGroups();
-  }
-
-  /**
    * The JavaScript language version accepted.
    */
   private LanguageMode languageIn;
@@ -134,6 +127,15 @@ public class CompilerOptions {
   boolean inferTypes;
 
   private boolean useNewTypeInference;
+
+  /**
+   * Relevant only when {@link #useNewTypeInference} is true, where we normally disable OTI errors.
+   * If you want both NTI and OTI errors in this case, set to true.
+   * E.g. if using using a warnings guard to filter NTI or OTI warnings in new or legacy code,
+   * respectively.
+   * This will be removed when NTI entirely replaces OTI.
+   */
+  boolean reportOTIErrorsUnderNTI = false;
 
   /**
    * Configures the compiler to skip as many passes as possible.
@@ -472,6 +474,9 @@ public class CompilerOptions {
 
   /** Chains calls to functions that return this. */
   boolean chainCalls;
+
+  /** Use type information to enable additional optimization opportunities. */
+  boolean useTypesForOptimization;
 
   //--------------------------------
   // Renaming
@@ -838,6 +843,10 @@ public class CompilerOptions {
 
   // Should only be used when debugging compiler bugs using small JS inputs.
   boolean printSourceAfterEachPass;
+
+  public void setPrintSourceAfterEachPass(boolean printSource) {
+    this.printSourceAfterEachPass = printSource;
+  }
 
   /** Where to save a report of global name usage */
   public void setReportPath(String reportPath) {
@@ -1277,17 +1286,6 @@ public class CompilerOptions {
     addWarningsGuard(new DiagnosticGroupWarningsGuard(type, level));
   }
 
-  /**
-   * Configure the given type of warning to the given level.
-   */
-  public void setWarningLevel(String groupName, CheckLevel level) {
-    DiagnosticGroup type = getDiagnosticGroups().forName(groupName);
-    if (type == null) {
-      throw new RuntimeException("Unknown DiagnosticGroup name: " + groupName);
-    }
-    setWarningLevel(type, level);
-  }
-
   WarningsGuard getWarningsGuard() {
     return this.warningsGuard;
   }
@@ -1549,7 +1547,7 @@ public class CompilerOptions {
    * This supersedes manageClosureDependencies.
    */
   public void setDependencyOptions(DependencyOptions options) {
-    Preconditions.checkNotNull(options);
+    options.setEs6ModuleOrder(this.languageIn.isEs6OrHigher());
     this.dependencyOptions = options;
   }
 
@@ -1582,10 +1580,10 @@ public class CompilerOptions {
     Preconditions.checkNotNull(entryPoints);
     setManageClosureDependencies(true);
 
-    List<DependencyOptions.ModuleIdentifier> normalizedEntryPoints = new ArrayList<>();
+    List<ModuleIdentifier> normalizedEntryPoints = new ArrayList<>();
 
     for (String entryPoint : entryPoints) {
-      normalizedEntryPoints.add(DependencyOptions.ModuleIdentifier.forClosure(entryPoint));
+      normalizedEntryPoints.add(ModuleIdentifier.forClosure(entryPoint));
     }
 
     dependencyOptions.setEntryPoints(normalizedEntryPoints);
@@ -1760,7 +1758,12 @@ public class CompilerOptions {
     this.useNewTypeInference = enable;
   }
 
-  /**
+  // Not dead code; used by the open-source users of the compiler.
+  public void setReportOTIErrorsUnderNTI(boolean enable) {
+    this.reportOTIErrorsUnderNTI = enable;
+  }
+
+/**
    * @return Whether assumeStrictThis is set.
    */
   public boolean assumeStrictThis() {
@@ -2351,6 +2354,13 @@ public class CompilerOptions {
    */
   public void setModuleRoots(List<String> moduleRoots) {
     this.moduleRoots = moduleRoots;
+  }
+
+  /**
+   * Sets whether to rewrite polyfills.
+   */
+  public void setRewritePolyfills(boolean rewritePolyfills) {
+    this.rewritePolyfills = rewritePolyfills;
   }
 
   /**

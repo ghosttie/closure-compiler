@@ -16,13 +16,15 @@
 
 // GENERATED FILE. DO NOT EDIT. REBUILD WITH build_runtime.sh.
 
-/**@suppress {undefinedVars}
+'use strict';/**@suppress {undefinedVars}
+
 @param {!Object} maybeGlobal
 @return {!Object} */$jscomp.getGlobal = function(maybeGlobal) {
   return typeof window != "undefined" && window === maybeGlobal ? maybeGlobal : typeof global != "undefined" ? global : maybeGlobal;
 };
 /**@const @type {!Object} */$jscomp.global = $jscomp.getGlobal(this);
-/**@suppress {reportUnknownTypes} */$jscomp.initSymbol = function() {
+/**@suppress {reportUnknownTypes}
+*/$jscomp.initSymbol = function() {
   if (!$jscomp.global.Symbol) {
     $jscomp.global.Symbol = $jscomp.Symbol;
   }
@@ -31,11 +33,13 @@
 };
 /**@private @type {number} */$jscomp.symbolCounter_ = 0;
 /**@suppress {reportUnknownTypes}
+
 @param {string} description
 @return {symbol} */$jscomp.Symbol = function(description) {
   return /**@type {symbol} */("jscomp_symbol_" + description + $jscomp.symbolCounter_++);
 };
-/**@suppress {reportUnknownTypes} */$jscomp.initSymbolIterator = function() {
+/**@suppress {reportUnknownTypes}
+*/$jscomp.initSymbolIterator = function() {
   $jscomp.initSymbol();
   if (!$jscomp.global.Symbol.iterator) {
     $jscomp.global.Symbol.iterator = $jscomp.global.Symbol("iterator");
@@ -43,16 +47,14 @@
   $jscomp.initSymbolIterator = function() {
   };
 };
-/**@suppress {reportUnknownTypes} @template T
+/**@suppress {reportUnknownTypes}
+@template T
 
-@param {(string|!Array<T>|!Iterable<T>|!Iterator<T>)} iterable
+@param {(string|!Array<T>|!Iterable<T>|!Iterator<T>|!Arguments<T>)} iterable
 @return {!Iterator<T>} */$jscomp.makeIterator = function(iterable) {
   $jscomp.initSymbolIterator();
   if (iterable[$jscomp.global.Symbol.iterator]) {
     return iterable[$jscomp.global.Symbol.iterator]();
-  }
-  if (!(iterable instanceof Array) && typeof iterable != "string" && !(iterable instanceof String)) {
-    throw new TypeError(iterable + " is not iterable");
   }
   var index = 0;
   return /**@type {!Iterator} */({next:function() {
@@ -67,7 +69,7 @@
 
 @param {!Iterator<T>} iterator
 @return {!Array<T>} */$jscomp.arrayFromIterator = function(iterator) {
-  var i = undefined;
+  var i;
   /**@const */var arr = [];
   while (!(i = iterator.next()).done) {
     arr.push(i.value);
@@ -76,22 +78,13 @@
 };
 /**@template T
 
-@param {(string|!Array<T>|!Iterable<T>)} iterable
+@param {(string|!Array<T>|!Iterable<T>|!Arguments<T>)} iterable
 @return {!Array<T>} */$jscomp.arrayFromIterable = function(iterable) {
   if (iterable instanceof Array) {
     return iterable;
   } else {
     return $jscomp.arrayFromIterator($jscomp.makeIterator(iterable));
   }
-};
-/**
-@param {!Arguments} args
-@return {!Array} */$jscomp.arrayFromArguments = function(args) {
-  /**@const */var result = [];
-  for (var i = 0;i < args.length;i++) {
-    result.push(args[i]);
-  }
-  return result;
 };
 /**
 @param {!Function} childCtor
@@ -104,7 +97,9 @@
   for (/**@const */var p in parentCtor) {
     if ($jscomp.global.Object.defineProperties) {
       var descriptor = $jscomp.global.Object.getOwnPropertyDescriptor(parentCtor, p);
-      $jscomp.global.Object.defineProperty(childCtor, p, descriptor);
+      if (descriptor) {
+        $jscomp.global.Object.defineProperty(childCtor, p, descriptor);
+      }
     } else {
       childCtor[p] = parentCtor[p];
     }
@@ -115,11 +110,12 @@
 @return {{done:boolean}} */$jscomp.array.done_ = function() {
   return {done:true, value:void 0};
 };
-/**@private @suppress {checkTypes} @template INPUT,OUTPUT
+/**@private @suppress {checkTypes}
+@template INPUT,OUTPUT
 
 @param {!IArrayLike<INPUT>} array
 @param {function(number,INPUT):OUTPUT} func
-@return {!Iterator<OUTPUT>} */$jscomp.array.arrayIterator_ = function(array, func) {
+@return {!IteratorIterable<OUTPUT>} */$jscomp.array.arrayIterator_ = function(array, func) {
   if (array instanceof String) {
     array = String(array);
   }
@@ -159,7 +155,7 @@
 };
 /**@template INPUT,OUTPUT,THIS
 
-@param {(!IArrayLike<INPUT>|!Iterable<INPUT>)} arrayLike
+@param {(!IArrayLike<INPUT>|!Iterator<INPUT>|!Iterable<INPUT>)} arrayLike
 @param {function(this:THIS,INPUT):OUTPUT=} opt_mapFn
 @param {THIS=} opt_thisArg
 @return {!Array<OUTPUT>} */$jscomp.array.from = function(arrayLike, opt_mapFn, opt_thisArg) {
@@ -173,7 +169,7 @@
     $jscomp.initSymbol();
     $jscomp.initSymbolIterator();
     /**@const */var iter = arrayLike[Symbol.iterator]();
-    var next = undefined;
+    var next;
     while (!(next = iter.next()).done) {
       result.push(opt_mapFn.call(opt_thisArg, next.value));
     }
@@ -185,51 +181,53 @@
   }
   return result;
 };
-/**@suppress {checkTypes} @template VALUE
-
-@param {...VALUE} elements
-@return {!Array<VALUE>} */$jscomp.array.of = function(elements) {
+/**
+@param {...*} elements
+@return {!Array<*>} */$jscomp.array.of = function(elements) {
   var $jscomp$restParams = [];
   for (var $jscomp$restIndex = 0;$jscomp$restIndex < arguments.length;++$jscomp$restIndex) {
     $jscomp$restParams[$jscomp$restIndex - 0] = arguments[$jscomp$restIndex];
   }
-  var elements$10 = $jscomp$restParams;
+  var /**@type {!Array<*>} */elements$10 = $jscomp$restParams;
   return $jscomp.array.from(elements$10);
 };
 /**@template VALUE
 
-@return {!Iterator<!Array<(number|VALUE)>>}
+@return {!IteratorIterable<!Array<(number|VALUE)>>}
 @this {!IArrayLike<VALUE>} */$jscomp.array.entries = function() {
   return $jscomp.array.arrayIterator_(this, function(i, v) {
     return [i, v];
   });
 };
-/**@suppress {checkTypes,const} */$jscomp.array.entries$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.array.entries$install = function() {
   if (!Array.prototype.entries) {
     Array.prototype.entries = $jscomp.array.entries;
   }
 };
 /**
-@return {!Iterator<number>}
+@return {!IteratorIterable<number>}
 @this {!IArrayLike} */$jscomp.array.keys = function() {
   return $jscomp.array.arrayIterator_(this, function(i) {
     return i;
   });
 };
-/**@suppress {checkTypes,const} */$jscomp.array.keys$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.array.keys$install = function() {
   if (!Array.prototype.keys) {
     Array.prototype.keys = $jscomp.array.keys;
   }
 };
 /**@template VALUE
 
-@return {!Iterator<VALUE>}
+@return {!IteratorIterable<VALUE>}
 @this {!IArrayLike<VALUE>} */$jscomp.array.values = function() {
   return $jscomp.array.arrayIterator_(this, function(_, v) {
     return v;
   });
 };
-/**@suppress {checkTypes,const} */$jscomp.array.values$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.array.values$install = function() {
   if (!Array.prototype.values) {
     Array.prototype.values = $jscomp.array.values;
   }
@@ -268,7 +266,8 @@
   }
   return this;
 };
-/**@suppress {checkTypes,const} */$jscomp.array.copyWithin$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.array.copyWithin$install = function() {
   if (!Array.prototype.copyWithin) {
     Array.prototype.copyWithin = $jscomp.array.copyWithin;
   }
@@ -290,7 +289,8 @@
   }
   return this;
 };
-/**@suppress {checkTypes,const} */$jscomp.array.fill$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.array.fill$install = function() {
   if (!Array.prototype.fill) {
     Array.prototype.fill = $jscomp.array.fill;
   }
@@ -303,7 +303,8 @@
 @this {!IArrayLike<VALUE>} */$jscomp.array.find = function(callback, opt_thisArg) {
   return $jscomp.array.findInternal_(this, callback, opt_thisArg).v;
 };
-/**@suppress {checkTypes,const} */$jscomp.array.find$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.array.find$install = function() {
   if (!Array.prototype.find) {
     Array.prototype.find = $jscomp.array.find;
   }
@@ -316,7 +317,8 @@
 @this {!IArrayLike<VALUE>} */$jscomp.array.findIndex = function(callback, opt_thisArg) {
   return $jscomp.array.findInternal_(this, callback, opt_thisArg).i;
 };
-/**@suppress {checkTypes,const} */$jscomp.array.findIndex$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.array.findIndex$install = function() {
   if (!Array.prototype.findIndex) {
     Array.prototype.findIndex = $jscomp.array.findIndex;
   }
@@ -348,7 +350,7 @@
     if (map.get(key) != "s" || map.size != 1 || map.get({x:4}) || map.set({x:4}, "t") != map || map.size != 2) {
       return false;
     }
-    /**@const */var iter = map.entries();
+    /**@const @type {!Iterator<!Array>} */var iter = map.entries();
     var item = iter.next();
     if (item.done || item.value[0] != key || item.value[1] != "s") {
       return false;
@@ -362,7 +364,8 @@
     return false;
   }
 };
-/**@private @suppress {checkTypes} @template KEY,VALUE
+/**@private @suppress {checkTypes}
+@template KEY,VALUE
 
 @return {!$jscomp.Map.Entry_<KEY,VALUE>} */$jscomp.Map.createHead_ = function() {
   /**@const */var head = /***/{};
@@ -408,7 +411,7 @@
 };
 /**
 @param {KEY} key
-@return {boolean} */$jscomp.Map.prototype["delete"] = function(key) {
+@return {boolean} */$jscomp.Map.prototype.delete = function(key) {
   /**@const */var $jscomp$destructuring$var1 = this.maybeGetEntry_(key);
   /**@const */var id = $jscomp$destructuring$var1.id;
   /**@const */var list = $jscomp$destructuring$var1.list;
@@ -460,26 +463,26 @@
   return {id:id, list:list, index:-1, entry:void 0};
 };
 /**
-@return {!Iterator<!Array<(KEY|VALUE)>>} */$jscomp.Map.prototype.entries = function() {
+@return {!IteratorIterable<!Array<(KEY|VALUE)>>} */$jscomp.Map.prototype.entries = function() {
   return this.iter_(function(entry) {
     return [entry.key, entry.value];
   });
 };
 /**
-@return {!Iterator<KEY>} */$jscomp.Map.prototype.keys = function() {
+@return {!IteratorIterable<KEY>} */$jscomp.Map.prototype.keys = function() {
   return this.iter_(function(entry) {
     return entry.key;
   });
 };
 /**
-@return {!Iterator<VALUE>} */$jscomp.Map.prototype.values = function() {
+@return {!IteratorIterable<VALUE>} */$jscomp.Map.prototype.values = function() {
   return this.iter_(function(entry) {
     return entry.value;
   });
 };
 /**@template THIS
 
-@param {function(this:THIS,KEY,VALUE,!$jscomp.Map<KEY,VALUE>)} callback
+@param {function(this:THIS,VALUE,KEY,!$jscomp.Map<KEY,VALUE>)} callback
 @param {THIS=} opt_thisArg */$jscomp.Map.prototype.forEach = function(callback, opt_thisArg) {
   for (var $jscomp$iter$2 = $jscomp.makeIterator(this.entries()), $jscomp$key$entry = $jscomp$iter$2.next();!$jscomp$key$entry.done;$jscomp$key$entry = $jscomp$iter$2.next()) {
     /**@const */var entry = $jscomp$key$entry.value;
@@ -489,13 +492,13 @@
 /**@private @template T
 
 @param {function(!$jscomp.Map.Entry_<KEY,VALUE>):T} func
-@return {!Iterator<T>} */$jscomp.Map.prototype.iter_ = function(func) {
+@return {!IteratorIterable<T>} */$jscomp.Map.prototype.iter_ = function(func) {
   /**@const */var map = this;
   var entry = this.head_;
   $jscomp.initSymbol();
   $jscomp.initSymbolIterator();
   var $jscomp$compprop3 = {};
-  return /**@type {!Iterator} */($jscomp$compprop3.next = function() {
+  return /**@type {!IteratorIterable} */($jscomp$compprop3.next = function() {
     if (entry) {
       while (entry.head != map.head_) {
         entry = entry.previous;
@@ -696,7 +699,7 @@
   for (var $jscomp$restIndex = 2;$jscomp$restIndex < arguments.length;++$jscomp$restIndex) {
     $jscomp$restParams[$jscomp$restIndex - 2] = arguments[$jscomp$restIndex];
   }
-  var rest$11 = $jscomp$restParams;
+  var /**@type {!Array<*>} */rest$11 = $jscomp$restParams;
   x = Number(x);
   y = Number(y);
   var max = Math.max(Math.abs(x), Math.abs(y));
@@ -718,6 +721,7 @@
     var sum$13 = x * x + y * y;
     for (var $jscomp$iter$6 = $jscomp.makeIterator(rest$11), $jscomp$key$z = $jscomp$iter$6.next();!$jscomp$key$z.done;$jscomp$key$z = $jscomp$iter$6.next()) {
       var z$14 = $jscomp$key$z.value;
+      z$14 = Number(z$14);
       sum$13 += z$14 * z$14;
     }
     return Math.sqrt(sum$13);
@@ -776,15 +780,18 @@
 /***/$jscomp.object = $jscomp.object || {};
 /**
 @param {!Object} target
-@param {...!Object} sources
+@param {...?Object} sources
 @return {!Object} */$jscomp.object.assign = function(target, sources) {
   var $jscomp$restParams = [];
   for (var $jscomp$restIndex = 1;$jscomp$restIndex < arguments.length;++$jscomp$restIndex) {
     $jscomp$restParams[$jscomp$restIndex - 1] = arguments[$jscomp$restIndex];
   }
-  var sources$15 = $jscomp$restParams;
+  var /**@type {!Array<?Object>} */sources$15 = $jscomp$restParams;
   for (var $jscomp$iter$7 = $jscomp.makeIterator(sources$15), $jscomp$key$source = $jscomp$iter$7.next();!$jscomp$key$source.done;$jscomp$key$source = $jscomp$iter$7.next()) {
     /**@const */var source = $jscomp$key$source.value;
+    if (!source) {
+      continue;
+    }
     for (/**@const */var key in source) {
       if (Object.prototype.hasOwnProperty.call(source, key)) {
         target[key] = source[key];
@@ -845,10 +852,10 @@
   this.size = this.map_.size;
   return this;
 };
-/**@suppress {checkTypes}
+/**
 @param {VALUE} value
-@return {boolean} */$jscomp.Set.prototype["delete"] = function(value) {
-  /**@const */var result = this.map_["delete"](value);
+@return {boolean} */$jscomp.Set.prototype.delete = function(value) {
+  /**@const */var result = this.map_.delete(value);
   this.size = this.map_.size;
   return result;
 };
@@ -862,11 +869,11 @@
   return this.map_.has(value);
 };
 /**
-@return {!Iterator<!Array<VALUE>>} */$jscomp.Set.prototype.entries = function() {
+@return {!IteratorIterable<!Array<VALUE>>} */$jscomp.Set.prototype.entries = function() {
   return this.map_.entries();
 };
 /**
-@return {!Iterator<VALUE>} */$jscomp.Set.prototype.values = function() {
+@return {!IteratorIterable<VALUE>} */$jscomp.Set.prototype.values = function() {
   return this.map_.values();
 };
 /**@template THIS
@@ -906,7 +913,7 @@
   for (var $jscomp$restIndex = 0;$jscomp$restIndex < arguments.length;++$jscomp$restIndex) {
     $jscomp$restParams[$jscomp$restIndex - 0] = arguments[$jscomp$restIndex];
   }
-  var codepoints$16 = $jscomp$restParams;
+  var /**@type {!Array<number>} */codepoints$16 = $jscomp$restParams;
   var result = "";
   for (var $jscomp$iter$9 = $jscomp.makeIterator(codepoints$16), $jscomp$key$code = $jscomp$iter$9.next();!$jscomp$key$code.done;$jscomp$key$code = $jscomp$iter$9.next()) {
     var code = $jscomp$key$code.value;
@@ -944,7 +951,8 @@
   }
   return result;
 };
-/**@const @suppress {checkTypes,const} */$jscomp.string.repeat$install = function() {
+/**@const @suppress {checkTypes,const}
+*/$jscomp.string.repeat$install = function() {
   if (!String.prototype.repeat) {
     String.prototype.repeat = $jscomp.string.repeat;
   }
@@ -970,7 +978,8 @@
   }
   return (first - 55296) * 1024 + second + 9216;
 };
-/**@suppress {checkTypes,const} */$jscomp.string.codePointAt$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.string.codePointAt$install = function() {
   if (!String.prototype.codePointAt) {
     String.prototype.codePointAt = $jscomp.string.codePointAt;
   }
@@ -985,7 +994,8 @@
   /**@const */var string = this.toString();
   return string.indexOf(searchString, opt_position) !== -1;
 };
-/**@suppress {checkTypes,const} */$jscomp.string.includes$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.string.includes$install = function() {
   if (!String.prototype.includes) {
     String.prototype.includes = $jscomp.string.includes;
   }
@@ -1010,7 +1020,8 @@
   }
   return j >= searchLen;
 };
-/**@suppress {checkTypes,const} */$jscomp.string.startsWith$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.string.startsWith$install = function() {
   if (!String.prototype.startsWith) {
     String.prototype.startsWith = $jscomp.string.startsWith;
   }
@@ -1035,7 +1046,8 @@
   }
   return j <= 0;
 };
-/**@suppress {checkTypes,const} */$jscomp.string.endsWith$install = function() {
+/**@suppress {checkTypes,const}
+*/$jscomp.string.endsWith$install = function() {
   if (!String.prototype.endsWith) {
     String.prototype.endsWith = $jscomp.string.endsWith;
   }

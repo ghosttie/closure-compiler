@@ -48,8 +48,10 @@ abstract class IntegrationTestCase extends TestCase {
           "var Iterator;",
           "/** @interface */",
           "var Iterable;",
+          "/** @interface @extends {Iterator} @extends {Iterable} */",
+          "var IteratorIterable;",
           "/** @interface */",
-          "var IArrayLike;",
+          "function IArrayLike() {};",
           "/** @constructor */",
           "var Map;",
           "",
@@ -72,6 +74,7 @@ abstract class IntegrationTestCase extends TestCase {
           "",
           "/**",
           " * @constructor",
+          " * @implements {IArrayLike}",
           " * @return {!Array}",
           " * @param {...*} var_args",
           " */",
@@ -107,7 +110,12 @@ abstract class IntegrationTestCase extends TestCase {
           " */",
           "function TypeError(opt_message, opt_file, opt_line) {}",
           "",
-          "function Object() {}",
+          "/**",
+          " * @constructor",
+          " * @param {*=} opt_value",
+          " * @return {!Object}",
+          " */",
+          "function Object(opt_value) {}",
           "Object.seal;",
           "Object.defineProperties;",
           "/** @type {!Function} */",
@@ -179,9 +187,11 @@ abstract class IntegrationTestCase extends TestCase {
     Node root = compiler.getRoot().getLastChild();
     Node expectedRoot = parseExpectedCode(compiled, options, normalizeResults);
     String explanation = expectedRoot.checkTreeEquals(root);
-    assertNull("\nExpected: " + compiler.toSource(expectedRoot) +
-        "\nResult: " + compiler.toSource(root) +
-        "\n" + explanation, explanation);
+    assertNull("\n"
+        + "Expected: " + compiler.toSource(expectedRoot) + "\n"
+        + "Result:   " + compiler.toSource(root) + "\n"
+        + explanation,
+        explanation);
   }
 
   /**
@@ -305,10 +315,6 @@ abstract class IntegrationTestCase extends TestCase {
   protected Compiler compile(CompilerOptions options, String[] original) {
     Compiler compiler = lastCompiler = new Compiler();
     BlackHoleErrorManager.silence(compiler);
-    List<SourceFile> inputs = new ArrayList<>();
-    for (int i = 0; i < original.length; i++) {
-      inputs.add(SourceFile.fromCode("input" + i, original[i]));
-    }
     compiler.compileModules(
         externs, ImmutableList.copyOf(CompilerTestCase.createModuleChain(original)),
         options);

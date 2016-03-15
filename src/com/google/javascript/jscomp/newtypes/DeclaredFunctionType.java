@@ -16,7 +16,6 @@
 
 package com.google.javascript.jscomp.newtypes;
 
-import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -59,6 +58,7 @@ public final class DeclaredFunctionType {
       JSType nominalType,
       JSType receiverType,
       ImmutableList<String> typeParameters) {
+    Preconditions.checkArgument(retType == null || !retType.isBottom());
     this.requiredFormals = requiredFormals;
     this.optionalFormals = optionalFormals;
     this.restFormals = restFormals;
@@ -336,8 +336,11 @@ public final class DeclaredFunctionType {
       builder.addRestFormals(
           nullAcceptingJoin(f1.restFormals, f2.restFormals));
     }
-    builder.addRetType(
-        nullAcceptingMeet(f1.returnType, f2.returnType));
+    JSType retType = nullAcceptingMeet(f1.returnType, f2.returnType);
+    if (JSType.BOTTOM.equals(retType)) {
+      return null;
+    }
+    builder.addRetType(retType);
     return builder.buildDeclaration();
   }
 
@@ -363,11 +366,6 @@ public final class DeclaredFunctionType {
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("Required formals", requiredFormals)
-        .add("Optional formals", optionalFormals)
-        .add("Varargs formals", restFormals)
-        .add("Return", returnType)
-        .add("Nominal type", nominalType).toString();
+    return toFunctionType().toString();
   }
 }
